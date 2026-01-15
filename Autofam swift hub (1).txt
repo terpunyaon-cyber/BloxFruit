@@ -1,0 +1,543 @@
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+local Players, RunService, Camera, LocalPlayer, Mouse, UIS =
+    game:GetService("Players"), game:GetService("RunService"),
+    workspace.CurrentCamera, game.Players.LocalPlayer, game.Players.LocalPlayer:GetMouse(),
+    game:GetService("UserInputService")
+
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+
+-- ===============================
+-- COLORS
+-- ===============================
+local BLUE_MAIN   = Color3.fromHex("#1E6CFF")
+local BLUE_SOFT   = Color3.fromHex("#6FB1FF")
+local BLUE_LIGHT  = Color3.fromHex("#CFE2FF")
+
+local WHITE_PURE  = Color3.fromHex("#FFFFFF")
+local WHITE_SOFT  = Color3.fromHex("#F4F7FF")
+
+local TEXT_DARK   = Color3.fromHex("#1A2A4A") -- ตัวหนังสือเข้ม อ่านชัด
+
+-- ===============================
+-- GRADIENTS
+-- ===============================
+
+-- ปุ่ม / Toggle / Slider (น้ำเงิน → ขาว)
+local BLUE_WHITE_GRADIENT = WindUI:Gradient({
+    ["0"]   = { Color = BLUE_MAIN, Transparency = 0 },
+    ["60"]  = { Color = BLUE_SOFT, Transparency = 0 },
+    ["100"] = { Color = WHITE_PURE, Transparency = 0 },
+}, { Rotation = 45 })
+
+-- 🌊 พื้นหลังหลัก (น้ำเงิน + ขาว)
+local BACKGROUND_GRADIENT = WindUI:Gradient({
+    ["0"]   = { Color = BLUE_LIGHT, Transparency = 0 },
+    ["50"]  = { Color = WHITE_PURE, Transparency = 0 },
+    ["100"] = { Color = BLUE_SOFT, Transparency = 0 },
+}, { Rotation = 90 })
+
+-- Tab / Element (ขาวสะอาด)
+local WHITE_GRADIENT = WindUI:Gradient({
+    ["0"]   = { Color = WHITE_PURE, Transparency = 0 },
+    ["100"] = { Color = WHITE_SOFT, Transparency = 0 },
+}, { Rotation = 90 })
+
+-- ===============================
+-- THEME
+-- ===============================
+WindUI:AddTheme({
+    Name = "BlueWhite",
+
+    Accent = BLUE_WHITE_GRADIENT,
+
+    Background = BACKGROUND_GRADIENT,
+    BackgroundTransparency = 0,
+
+    Outline = BLUE_MAIN,
+    Text = TEXT_DARK,
+    Placeholder = Color3.fromHex("#5E7EC8"),
+    Icon = BLUE_MAIN,
+    Hover = BLUE_WHITE_GRADIENT,
+
+    -- WINDOW
+    WindowBackground = BACKGROUND_GRADIENT,
+
+    -- TOPBAR
+    WindowTopbarTitle = TEXT_DARK,
+    WindowTopbarAuthor = BLUE_MAIN,
+    WindowTopbarIcon = BLUE_MAIN,
+    WindowTopbarButtonIcon = BLUE_MAIN,
+
+    -- TAB
+    TabBackground = WHITE_GRADIENT,
+    TabTitle = TEXT_DARK,
+    TabIcon = BLUE_MAIN,
+
+    -- ELEMENT
+    ElementBackground = WHITE_GRADIENT,
+    ElementTitle = TEXT_DARK,
+    ElementDesc = Color3.fromHex("#4A66B0"),
+    ElementIcon = BLUE_MAIN,
+
+    -- CONTROLS
+    Button = BLUE_WHITE_GRADIENT,
+    Toggle = BLUE_WHITE_GRADIENT,
+    ToggleBar = BLUE_MAIN,
+    Checkbox = BLUE_WHITE_GRADIENT,
+    CheckboxIcon = WHITE_PURE,
+    Slider = BLUE_WHITE_GRADIENT,
+    SliderThumb = WHITE_PURE,
+
+    -- POPUP / DIALOG
+    PopupBackground = WHITE_GRADIENT,
+    PopupTitle = TEXT_DARK,
+    PopupContent = TEXT_DARK,
+    PopupIcon = BLUE_MAIN,
+
+    DialogBackground = WHITE_GRADIENT,
+    DialogTitle = TEXT_DARK,
+    DialogContent = TEXT_DARK,
+    DialogIcon = BLUE_MAIN,
+})
+
+WindUI:SetTheme("BlueWhite")
+
+
+local Window = WindUI:CreateWindow({
+    Title = "Senixa HUB [ Test ]",
+    Icon = "rbxassetid://126601065035910",
+    Theme = "BlueWhite",
+    Transparent = true,
+    Resizable = true,
+    Size = UDim2.fromOffset(850, 400),   
+    MinSize = Vector2.new(480, 480),   
+    MaxSize = Vector2.new(1000, 500),   
+    SideBarWidth = 190,             
+
+    User = {
+        Enabled = true,
+        Anonymous = false,
+        Name = LP.Name,
+        Image = "rbxthumb://type=AvatarHeadShot&id=" .. LP.UserId .. "&w=420&h=420",
+    },
+})
+
+
+
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CollectionService = game:GetService("CollectionService")
+
+repeat task.wait() until LP:FindFirstChild("PlayerGui")
+repeat task.wait() until LP.PlayerGui:FindFirstChild("Main")
+repeat task.wait() until LP.PlayerGui.Main:FindFirstChild("Quest")
+repeat task.wait() until LP:FindFirstChild("Data") and LP.Data:FindFirstChild("Level")
+repeat task.wait() until Workspace:FindFirstChild("Enemies")
+
+-------------------------------------------------
+--// PLAYER
+-------------------------------------------------
+local Character, RootPart
+local function SetCharacter(char)
+    Character = char
+    RootPart = char:WaitForChild("HumanoidRootPart")
+end
+SetCharacter(LP.Character or LP.CharacterAdded:Wait())
+LP.CharacterAdded:Connect(SetCharacter)
+
+-------------------------------------------------
+--// SETTINGS
+-------------------------------------------------
+_G.AutoFarm = false
+local function IsOn()
+    return _G.AutoFarm == true
+end
+local TweenSpeed = 300
+local HeadOffset = Vector3.new(0, 30, 0)
+
+-- Bring
+local BRING_DISTANCE = 125
+local BRING_LERP_SPEED = 0.04
+local BRING_UPDATE_DELAY = 0.1
+local BringInterval = 4
+local LastBringTime = 0
+
+
+local EquipCheckDelay = 1
+local selected_Tool = "Melee"
+local AutoModes = {
+    AutoFarm = true,
+}
+
+
+-------------------------------------------------
+--// QUEST SYSTEM
+-------------------------------------------------
+local QuestData = require(ReplicatedStorage:WaitForChild("Quests"))
+local GuideModule = require(ReplicatedStorage:WaitForChild("GuideModule"))
+
+local function Action(args)
+    return ReplicatedStorage.Remotes.CommF_:InvokeServer(table.unpack(args))
+end
+
+local function HasQuest()
+    return LP.PlayerGui.Main.Quest.Visible
+end
+
+local function GetQuest()
+    local best, lv, key, category = nil, -1
+
+    for cat, quests in pairs(QuestData) do
+        for qKey, info in pairs(quests) do
+            if info.LevelReq and LP.Data.Level.Value >= info.LevelReq then
+                local mobName, count = next(info.Task or {})
+                if not count or count < 2 then continue end
+                if info.LevelReq > lv then
+                    lv = info.LevelReq
+                    best = info
+                    key = qKey
+                    category = cat
+                end
+            end
+        end
+    end
+
+    if not best then return end
+
+    local npc = GuideModule.GetNearestNPC(
+        GuideModule,
+        RootPart.Position,
+        LP.Data.Level.Value
+    )
+
+    return {
+        Mob = next(best.Task),
+        Key = key,
+        Category = category,
+        NPC = npc and npc[1]
+    }
+end
+
+------------------------------------
+--// UTILS
+-------------------------------
+local function TweenTo(cf, speed)
+    if not IsOn() then return end
+
+    local dist = (RootPart.Position - cf.Position).Magnitude
+    local tween = TweenService:Create(
+        RootPart,
+        TweenInfo.new(dist / (speed or TweenSpeed), Enum.EasingStyle.Linear),
+        { CFrame = cf }
+    )
+    tween:Play()
+    tween.Completed:Wait()
+end
+
+local function GetEnemySpawn(mobName)
+    local world = Workspace:FindFirstChild("_WorldOrigin")
+    if not world then return end
+    local spawns = world:FindFirstChild("EnemySpawns")
+    if not spawns then return end
+
+    for _, v in pairs(spawns:GetChildren()) do
+        if string.find(v.Name, mobName) then
+            return v.CFrame
+        end
+    end
+end
+
+----------------------
+--// BRING MOB 
+-------------------------------------------------
+local FollowMobs = {}
+local NM
+
+task.spawn(function()
+    while task.wait(0.2) do
+        if not IsOn() or not NM then continue end
+        if tick() - LastBringTime < BringInterval then continue end
+        LastBringTime = tick()
+
+        table.clear(FollowMobs)
+
+        for _, mob in pairs(Workspace.Enemies:GetChildren()) do
+            if mob.Name == NM
+            and mob:FindFirstChild("HumanoidRootPart")
+            and mob:FindFirstChild("Humanoid")
+            and mob.Humanoid.Health > 0
+            and (mob.HumanoidRootPart.Position - RootPart.Position).Magnitude <= BRING_DISTANCE then
+
+                table.insert(FollowMobs, mob)
+
+                task.spawn(function()
+                    local hrp = mob.HumanoidRootPart
+                    local hum = mob.Humanoid
+
+                    while IsOn() and mob.Parent and hum.Health > 0 do
+                        if (hrp.Position - RootPart.Position).Magnitude > BRING_DISTANCE then break end
+
+                        local main = FollowMobs[1]
+                        if main and main:FindFirstChild("HumanoidRootPart") then
+                            hrp.CFrame = hrp.CFrame:Lerp(
+                                main.HumanoidRootPart.CFrame,
+                                BRING_LERP_SPEED
+                            )
+                        end
+                        task.wait(BRING_UPDATE_DELAY)
+                    end
+                end)
+            end
+        end
+    end
+end)
+
+-------------------------------------------------
+--// FAST ATTACK
+-------------------------------------------------
+local registerHit = debug.getupvalue(getrenv()._G.SendHitsToServer, 1)
+local registerAttack = ReplicatedStorage.Modules.Net["RE/RegisterAttack"]
+
+task.spawn(function()
+    while task.wait() do
+        if not IsOn() then continue end
+
+        local hit = {}
+        for _, mob in pairs(CollectionService:GetTagged("BasicMob")) do
+            if mob:FindFirstChild("HumanoidRootPart")
+            and mob.Humanoid.Health > 0
+            and (mob.HumanoidRootPart.Position - RootPart.Position).Magnitude < 100 then
+                table.insert(hit, { mob, mob.HumanoidRootPart })
+            end
+        end
+
+        if #hit > 0 then
+            registerAttack:FireServer(0/0)
+            coroutine.resume(registerHit, hit[1][2], { table.unpack(hit, 2) })
+        end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.2) do
+        if not IsOn() then
+            NM = nil
+            continue
+        end
+
+        local quest = GetQuest()
+        if not quest then continue end
+        NM = quest.Mob
+
+        if not HasQuest() then
+            if quest.NPC then
+                TweenTo(CFrame.new(quest.NPC))
+                task.wait(0.3)
+                Action({ "StartQuest", quest.Category, quest.Key })
+                task.wait(0.5)
+            end
+            continue
+        end
+
+        local nearest, dist = nil, math.huge
+        for _, mob in pairs(Workspace.Enemies:GetChildren()) do
+            if mob.Name == NM
+            and mob:FindFirstChild("HumanoidRootPart")
+            and mob.Humanoid.Health > 0 then
+                local d = (mob.HumanoidRootPart.Position - RootPart.Position).Magnitude
+                if d < dist then
+                    dist = d
+                    nearest = mob
+                end
+            end
+        end
+
+        if not nearest then
+            local spawnCF = GetEnemySpawn(NM)
+            if spawnCF then
+                TweenTo(spawnCF * CFrame.new(0, 10, 0))
+                task.wait(1)
+            end
+            continue
+        end
+
+        while IsOn() and nearest.Parent and nearest.Humanoid.Health > 0 do
+            RootPart.CFrame = CFrame.new(nearest.HumanoidRootPart.Position + HeadOffset)
+            task.wait(0.01)
+        end
+    end
+end)
+
+if sethiddenproperty then
+    sethiddenproperty(LP, "SimulationRadius", math.huge)
+end
+
+
+-----------------
+--// Eq ---------
+-----------------
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+
+
+local function AnyModeOn()
+    for k in pairs(AutoModes) do
+        if _G[k] then
+            return true
+        end
+    end
+    return false
+end
+
+function FindWeaponsByType(weaponType)
+    local weapons = {}
+    for _, tool in ipairs(LocalPlayer.Backpack:GetChildren()) do
+        if tool:IsA("Tool") and tool.ToolTip == weaponType then
+            table.insert(weapons, tool)
+        end
+    end
+    return weapons
+end
+
+function equip_weapon(type_of_weapon)
+    local char = LocalPlayer.Character
+    if not char then return end
+    local humanoid = char:FindFirstChild("Humanoid")
+    if not humanoid then return end
+
+    local held = char:FindFirstChildOfClass("Tool")
+    if held and held.ToolTip == type_of_weapon then
+        return held
+    end
+
+    local weapons = FindWeaponsByType(type_of_weapon)
+    if #weapons > 0 then
+        humanoid:EquipTool(weapons[1])
+        return weapons[1]
+    end
+end
+
+function Eq(weapon)
+    selected_Tool = weapon
+    if not AnyModeOn() then return end
+    equip_weapon(selected_Tool)
+end
+
+task.spawn(function()
+    while true do
+        task.wait(EquipCheckDelay)
+        if AnyModeOn() then
+            pcall(function()
+                equip_weapon(selected_Tool)
+            end)
+        end
+    end
+end)
+
+
+
+local Tab = Window:Tab({Title = "Main", Icon = "user"})
+
+Tab:Dropdown({
+    Title = "Weapon Type",
+    Desc = "เลือกอาวุธฟาม",
+    Values = {"Melee", "Sword", "Blox Fruit", "Gun"},
+    Value = "Melee",
+    Callback = function(option)
+        Eq(option)
+    end
+})
+
+Tab:Toggle({
+    Title = "Auto Farm lv",
+    Desc = "ฟามเวล",
+    Default = false,
+    Callback = function(state)
+        _G.AutoFarm = state
+        if not state then
+            NM = nil
+        end
+    end
+})
+
+
+
+
+local Keybind = Tab:Keybind({
+    Title = "Keybind",
+    Desc = "Keybind to open ui",
+    Value = "G",
+    Callback = function(v)
+        Window:SetToggleKey(Enum.KeyCode[v])
+    end
+})
+
+local Stab = Window:Tab({Title = "Stat", Icon = "user"})
+
+
+Stab:Toggle({
+    Title = "Auto Stats",
+    Desc = "",
+    Value = false,
+    Callback = function(Value)
+        auto_stats = Value
+
+        if auto_stats then
+            task.spawn(function()
+                while auto_stats do
+                    task.wait(0.1) -- เวลาระหว่างอัพ
+                    for _, stat in ipairs(statsToAdd) do
+                        pcall(function()
+                            game:GetService("ReplicatedStorage")
+                                .Remotes
+                                .CommF_
+                                :InvokeServer("AddPoint", stat, pointsPerClick) -- ใช้ Slider
+                        end)
+                    end
+                end
+            end)
+        end
+    end
+})
+
+Stab:Dropdown({
+    Title = "Select Stat",
+    Desc = "",
+    Values = {
+        "Melee",
+        "Defense",
+        "Sword",
+        "Gun",
+        "Demon Fruit"
+    },
+    Multi = true, -- เลือกได้หลายค่า
+    Default = {"Melee"},
+    Callback = function(Value)
+        statsToAdd = Value
+    end
+})
+
+
+Stab:Slider({
+    Title = "PoinperUpgrade",
+    Desc = "ปรับpoin",
+    Step = 1,
+    Value = {
+        Min = 1,
+        Max = 9999, -- ปรับสูงสุดเป็น 9999
+        Default = 1,
+    },
+    Callback = function(value)
+        pointsPerClick = value
+    end
+})
